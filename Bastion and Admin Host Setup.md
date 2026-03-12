@@ -19,8 +19,6 @@
 
 ## Part 1 — Initial Photon OS 5 Setup
  
-> **These steps apply to both the Bastion Host and the Admin Host.** Run them on each VM. Everything after Part 1 is Bastion Host only.
- 
 ### Step 1.1 — First Boot Console Login
  
 Log in at the VM console. The default username is `root`.
@@ -37,7 +35,7 @@ Password: <password set during install or OVF deployment>
 Root SSH is disabled by default on Photon OS 5 Minimal.
  
 ```bash
-vi /etc/ssh/sshd_config
+vi /etc/ssh/sshd_config +32
 ```
  
 Set or confirm the following line:
@@ -60,7 +58,7 @@ Verify from your workstation: `ssh root@<BASTION_IP>`
  
 ### Step 1.3 — Update the OS
  
-Photon OS uses `tdnf` (Tiny DNF) as its package manager — not `apt`.
+Photon OS uses `tdnf` (Tiny DNF) as its package manager.
  
 ```bash
 tdnf update -y
@@ -71,7 +69,8 @@ Log back in after the reboot.
  
 ---
  
-### Step 1.4 — Set Hostname
+### Step 1.4 — Set Hostname (Optional)
+> This step is optional if the Hostname set during the Photon OS 5 deployment doesn't need to be changed.
  
 ```bash
 hostnamectl set-hostname bastion
@@ -82,6 +81,7 @@ hostnamectl set-hostname bastion
 ---
  
 ### Step 1.5 — Configure Static IP (Optional)
+> This step is optional if the IP address set during the initial installation of Photon OS 5 doesn't need to change.
  
 ```bash
 vi /etc/systemd/network/10-static.network
@@ -125,38 +125,11 @@ tdnf install -y \
 | `rsync` | Transferring the airgap bundle to the Admin Host |
 | `tmux` | Keeping long-running downloads alive (`screen` is not available in Photon OS 5 repos) |
  
-> **Photon OS 5 notes:** `ca-certificates` and `iproute2` are pre-installed — do not add them to the install command. For network diagnostics use `ip addr` and `ss -tulnp`. For DNS lookups use `getent hosts <hostname>`. Neither `bind-utils` nor `net-tools` are available in the Photon OS 5 repos.
+> **Photon OS 5 notes:** For network diagnostics use `ip addr` and `ss -tulnp`. For DNS lookups use `getent hosts <hostname>`. Neither `bind-utils` nor `net-tools` are available in the Photon OS 5 repos.
  
 ---
  
-## Part 2 — Install Docker
- 
-Docker is required for authenticating to the Broadcom OCI registry and for `imgpkg` bundle operations.
- 
-```bash
-tdnf install -y docker
-systemctl enable docker
-systemctl start docker
-```
- 
-### Optional: Configure Log Limits
- 
-```bash
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<'EOF'
-{
-  "log-driver": "json-file",
-  "log-opts": { "max-size": "10m", "max-file": "3" }
-}
-EOF
-systemctl restart docker
-```
- 
-Verify: `docker version`
- 
----
- 
-## Part 3 — Install imgpkg
+## Part 2 — Install imgpkg
  
 `imgpkg` (Carvel) copies OCI image bundles to and from registries. Used on the Bastion to pull the Standard Package bundle and on the Admin Host to push it to the Enterprise registry.
  
@@ -172,7 +145,7 @@ imgpkg version
  
 ---
  
-## Part 4 — Install the CLI (VCF CLI or Tanzu CLI)
+## Part 3 — Install the CLI (VCF CLI or Tanzu CLI)
  
 The right CLI depends on your vSphere version:
  
@@ -241,7 +214,7 @@ tanzu plugin download-bundle \
  
 ---
  
-## Part 5 — Tanzu CLI for Package Management (vSphere 9 also needs this)
+## Part 4 — Tanzu CLI for Package Management (vSphere 9 also needs this)
  
 Even on vSphere 9 with the VCF CLI, the **Tanzu CLI is still required for Tanzu Package operations** on VKS Clusters (`tanzu package repository add`, `tanzu package install`). If you followed Option A above, also install the Tanzu CLI:
  
@@ -259,7 +232,7 @@ tanzu version
  
 ---
  
-## Part 6 — Install yq
+## Part 5 — Install yq
  
 ```bash
 YQ_VERSION="v4.52.4"
@@ -273,7 +246,7 @@ yq --version
  
 ---
  
-## Part 7 — Install kubectl
+## Part 6 — Install kubectl
  
 ```bash
 KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
@@ -290,21 +263,20 @@ kubectl version --client
  
 ---
  
-## Part 8 — Verify All Tools
+## Part 7 — Verify All Tools
  
 ```bash
 echo "=== Bastion Host Tool Verification ==="
 echo "imgpkg:  $(imgpkg version 2>&1 | head -1)"
 echo "yq:      $(yq --version 2>&1)"
 echo "kubectl: $(kubectl version --client --short 2>&1)"
-echo "docker:  $(docker version --format '{{.Server.Version}}' 2>&1)"
 vcf version   2>/dev/null && echo "vcf:     $(vcf version 2>&1 | head -1)"   || true
 tanzu version 2>/dev/null && echo "tanzu:   $(tanzu version 2>&1 | head -1)" || true
 ```
  
 ---
  
-## Part 9 — Create Download Directory Structure
+## Part 8 — Create Download Directory Structure
  
 ```bash
 mkdir -p /opt/airgap/{vkr-ovas,vks-service,tanzu-packages,supervisor-services,binaries,vcf-cli,tanzu-cli}
@@ -322,15 +294,15 @@ mkdir -p /opt/airgap/{vkr-ovas,vks-service,tanzu-packages,supervisor-services,bi
  
 ---
  
-## Part 10 — Download VKr OVA Files
+## Part 9 — Download VKr OVA Files
  
 VKr OVAs are the OS+Kubernetes node images VKS uses to provision cluster VMs. In Content Library mode these are imported directly into a **local vCenter Content Library** — no registry push required.
  
-### Step 10.1 — Identify Required VKr Versions
+### Step 9.1 — Identify Required VKr Versions
  
 VKS 3.6 supports **VKr v1.32 and v1.33**. Download OVAs for each Kubernetes minor version you intend to offer. Both Photon OS and Ubuntu flavors are available — you cannot mix OS types within a single VKS Cluster. Photon OS is Broadcom's recommended default.
  
-### Step 10.2 — Download from the Broadcom Support Portal
+### Step 9.2 — Download from the Broadcom Support Portal
  
 ```
 https://support.broadcom.com/
@@ -360,7 +332,7 @@ ls -lh /opt/airgap/vkr-ovas/
  
 ---
  
-## Part 11 — Stage the VKS Service YAML
+## Part 10 — Stage the VKS Service YAML
  
 VKS is registered with vCenter asynchronously using a service definition YAML — no full vCenter update required.
  
@@ -391,7 +363,7 @@ ls -lh /opt/airgap/vks-service/
  
 ---
  
-## Part 12 — Download the VKS Standard Package Bundle
+## Part 11 — Download the VKS Standard Package Bundle
  
 The VKS Standard Package bundle contains all Tanzu Packages (cert-manager, Contour, Prometheus, Grafana, Velero, etc.) that can be installed on VKS Clusters. It is pushed to the Enterprise registry from the Admin Host and added as a package repository on each VKS Cluster.
  
@@ -418,11 +390,11 @@ ls -lh /opt/airgap/tanzu-packages/
  
 ---
  
-## Part 13 — Download Supervisor Service Assets
+## Part 12 — Download Supervisor Service Assets
  
 > **cert-manager and Contour:** For VKS 3.5+ these are included in the Standard Package bundle pulled in Part 12 and deployed as Tanzu Packages on VKS Clusters — they do not need a separate Supervisor Service bundle pull.
  
-### Step 13.1 — Harbor Bootstrap Registry (OVA)
+### Step 11.1 — Harbor Bootstrap Registry (OVA)
  
 If no Enterprise OCI registry exists in the air-gapped environment yet, Harbor can be deployed from an OVA first. It then serves as the registry for the Standard Package bundle and any other images.
  
@@ -437,7 +409,7 @@ mv ~/photon-5-harbor-v2*.ova /opt/airgap/supervisor-services/
 ls -lh /opt/airgap/supervisor-services/
 ```
  
-### Step 13.2 — Local Consumption Interface (LCI)
+### Step 11.2 — Local Consumption Interface (LCI)
  
 The **Local Consumption Interface** is the self-service developer UI embedded in the vSphere Client. It allows developers and DevOps teams to create namespaces, request storage, and deploy workloads directly from the vSphere Client without needing vCenter admin access — the primary self-service layer for Supervisor tenants.
  
@@ -460,7 +432,7 @@ ls -lh /opt/airgap/supervisor-services/
  
 > The LCI image is on the `vsphere/iaas/` path. If the pull returns UNAUTHORIZED, contact Broadcom support to confirm your account has access to this product on your Site ID.
  
-### Step 13.3 — Additional Supervisor Services (Optional)
+### Step 11.3 — Additional Supervisor Services (Optional)
  
 For any other Supervisor Services your environment requires, find the image reference in the Supervisor Services catalog and use the same pattern:
  
@@ -478,7 +450,7 @@ imgpkg copy \
  
 ---
  
-## Part 14 — Stage CLI Binaries
+## Part 13 — Stage CLI Binaries
  
 The Admin Host has no internet access, so it cannot download tools from GitHub or any public source. Every binary installed on the Bastion Host in Parts 3–7 needs to be physically carried into the air-gapped environment alongside the image bundles and OVAs. Copying them into `/opt/airgap` now means they transfer as part of the single `rsync` or tar operation in Part 16, rather than requiring a separate manual process. Without this step the Admin Host would have the image bundles but no tools to actually push them to the registry, authenticate to the Supervisor, or manage VKS Clusters.
  
@@ -500,7 +472,7 @@ ls -lh /opt/airgap/binaries/ /opt/airgap/vcf-cli/ /opt/airgap/tanzu-cli/
  
 ---
  
-## Part 15 — Generate a Download Manifest
+## Part 14 — Generate a Download Manifest
  
 ```bash
 echo "Bastion Host Download Manifest" > /opt/airgap/MANIFEST.txt
@@ -512,7 +484,7 @@ cat /opt/airgap/MANIFEST.txt
  
 ---
  
-## Part 16 — Record Harbor Registry Credentials
+## Part 15 — Record Harbor Registry Credentials
  
 The Admin Host needs credentials to push images to Harbor. Record the robot account details now so they are ready when you run the `imgpkg copy` commands on the Admin Host.
  
@@ -546,7 +518,7 @@ This cert is also needed when configuring the Supervisor to trust Harbor during 
  
 ---
  
-## Part 17 — Transfer Files to the Admin Host
+## Part 16 — Transfer Files to the Admin Host
  
 ### Option A — rsync (recommended for large transfers)
  
@@ -572,7 +544,7 @@ cp /tmp/airgap-bundle.tar.gz /mnt/usb/
  
 ---
  
-## Part 18 — Transfer Checklist
+## Part 17 — Transfer Checklist
  
 Confirm all items are present on the Admin Host before starting deployment.
  
@@ -621,7 +593,7 @@ These steps are performed on the Admin Host.
    cat /opt/airgap/harbor-ca.crt   # should start with -----BEGIN CERTIFICATE-----
    ```
    > **Note:** `--registry-insecure` does NOT skip TLS verification in imgpkg — it switches to plain HTTP. Since Harbor only listens on HTTPS this will still fail. The CA cert is the only working approach.
-4. **Set Harbor push credentials** — see Part 16 for the robot account details. Set the environment variables before pushing:
+4. **Set Harbor push credentials** — see Part 15 for the robot account details. Set the environment variables before pushing:
    ```bash
    export IMGPKG_REGISTRY_HOSTNAME=harbor-01.home.lab
    export IMGPKG_REGISTRY_USERNAME='robot$vc01.home.lab+vcenter-push'
@@ -690,7 +662,6 @@ These steps are performed on the Admin Host.
 | Update system | `apt update && apt upgrade -y` | `tdnf update -y` |
 | Search packages | `apt search <pkg>` | `tdnf search <pkg>` |
 | List installed | `dpkg -l` | `tdnf list installed` |
-| Install Docker | `apt install docker.io` | `tdnf install docker` |
 | Service management | `systemctl` | `systemctl` *(identical)* |
 | DNS lookup | `nslookup` / `dig` | `getent hosts <hostname>` |
 | Network interfaces | `ip addr`, `netstat` | `ip addr`, `ss -tulnp` |
@@ -699,12 +670,6 @@ These steps are performed on the Admin Host.
  
 ## Troubleshooting
  
-**Docker fails to start:**
-```bash
-journalctl -xe -u docker
-docker info | grep "Cgroup Version"   # Photon OS 5 uses cgroups v2
-```
- 
 **`tdnf update` fails with SSL errors:**
 ```bash
 update-ca-trust
@@ -712,15 +677,12 @@ tdnf update -y
 ```
  
 **imgpkg download times out behind a corporate proxy:**
+ 
+Set proxy environment variables before running `imgpkg`:
 ```bash
-mkdir -p /etc/systemd/system/docker.service.d
-cat > /etc/systemd/system/docker.service.d/proxy.conf <<'EOF'
-[Service]
-Environment="HTTP_PROXY=http://proxy.example.com:3128"
-Environment="HTTPS_PROXY=http://proxy.example.com:3128"
-Environment="NO_PROXY=localhost,127.0.0.1"
-EOF
-systemctl daemon-reload && systemctl restart docker
+export HTTP_PROXY=http://proxy.example.com:3128
+export HTTPS_PROXY=http://proxy.example.com:3128
+export NO_PROXY=localhost,127.0.0.1,harbor-01.home.lab
 ```
  
 **imgpkg push to Harbor fails with `x509: certificate signed by unknown authority`:**
@@ -736,7 +698,10 @@ imgpkg copy --tar <bundle.tar> \
 Note: the Harbor API endpoint `/api/v2.0/systeminfo/getcert` only works if Harbor was deployed with its own internal CA. If Harbor uses an externally-issued cert that endpoint returns `cert not found` — use `openssl s_client` instead.
  
 **imgpkg UNAUTHORIZED on `projects.packages.broadcom.com`:**
-The `vsphere/supervisor/packages` path is publicly accessible and should never require credentials. If you get UNAUTHORIZED it means Docker credentials are cached in `/root/.docker/config.json` from a previous `docker login` session — `imgpkg` picks them up automatically and the registry rejects them instead of falling back to anonymous access. Fix: `docker logout projects.packages.broadcom.com` and retry.
+The `vsphere/supervisor/packages` path is publicly accessible and should never require credentials. If you get UNAUTHORIZED it means credentials are cached in `/root/.docker/config.json` from a previous login session — `imgpkg` picks them up automatically and the registry rejects them instead of falling back to anonymous access. Fix:
+```bash
+rm -f /root/.docker/config.json
+```
  
 **imgpkg copy fails on cosign verification:**
 ```bash
@@ -771,13 +736,12 @@ The file `bastion-cloud-init.yaml` automates:
 | 1.4 | Sets hostname to `bastion` |
 | 1.5 | Static IP block (commented out — uncomment and fill in values, or leave as DHCP) |
 | 1.6 | Installs base utilities via `tdnf` |
-| 2 | Installs Docker, writes `daemon.json`, enables service |
-| 3 | Downloads and installs `imgpkg v0.46.0` |
-| 4B + 5 | Downloads and installs `tanzu-cli v1.5.4` |
-| 4A | VCF CLI v9.0.0 block — **commented out**, uncomment for vSphere 9 |
-| 6 | Downloads and installs `yq v4.52.4` |
-| 7 | Downloads and installs `kubectl` (latest stable) |
-| 9 | Creates `/opt/airgap/` directory structure |
+| 2 | Downloads and installs `imgpkg v0.46.0` |
+| 3B + 4 | Downloads and installs `tanzu-cli v1.5.4` |
+| 3A | VCF CLI v9.0.0 block — **commented out**, uncomment for vSphere 9 |
+| 5 | Downloads and installs `yq v4.52.4` |
+| 6 | Downloads and installs `kubectl` (latest stable) |
+| 8 | Creates `/opt/airgap/` directory structure |
 | — | Copies all binaries to `/opt/airgap/binaries/` for transfer to Admin Host |
 | — | Writes `/opt/airgap/bootstrap.log` with tool versions and layout summary |
  
